@@ -30,3 +30,20 @@ REST Style interraction with grpc clients also possible.
   }
 
 ```
+
+Universal grpc router for quartz with scala 3 macro.
+
+```scala
+ grpcIO <- IO(Router(sd).getIO)
+        exitCode <- new QuartzH2Server(
+          "localhost",
+          8443,
+          32000,
+          Some(ctx)
+        ).start(grpcIO, sync = false)
+```
+
+
+
+
+
