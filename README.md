@@ -37,6 +37,9 @@ REST Style interraction with grpc clients also possible.
 
 Universal grpc router for quartz with scala 3 macro.
 
+We need both ServerServiceDefinition and 
+TraitMethodFinder.getAllMethods[GreeterService] done with scala3 macro.
+
 ```scala
  def run(args: List[String]) /*: IO[ExitCode]*/ = {
 
