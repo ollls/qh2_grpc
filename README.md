@@ -38,19 +38,25 @@ REST Style interraction with grpc clients also possible.
 Universal grpc router for quartz with scala 3 macro.
 
 ```scala
- def run(args: List[String]) = {
+ def run(args: List[String]) /*: IO[ExitCode]*/ = {
 
     val greeterService: Resource[IO, ServerServiceDefinition] =
       GreeterFs2Grpc.bindServiceResource[IO](new GreeterService)
 
+    val mmap = TraitMethodFinder.getAllMethods[GreeterService]
+
+    println("Methods: " + mmap.size)
+
     val T = greeterService.use { sd =>
       for {
+        _ <- IO(QuartzH2Server.setLoggingLevel(Level.DEBUG))
+
         ctx <- QuartzH2Server.buildSSLContext(
           "TLSv1.3",
           "keystore.jks",
           "password"
         )
-        grpcIO <- IO(Router(sd).getIO)
+        grpcIO <- IO(Router[GreeterService]( service, sd, mmap).getIO)
         exitCode <- new QuartzH2Server(
           "localhost",
           8443,
@@ -60,7 +66,6 @@ Universal grpc router for quartz with scala 3 macro.
       } yield (exitCode)
     }
 
-    T
 ```
 
 
