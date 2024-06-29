@@ -19,8 +19,10 @@ import java.io.ByteArrayOutputStream
 import io.grpc.ServerMethodDefinition
 import scala.jdk.CollectionConverters._
 import scalapb.GeneratedMessage
+import io.grpc.Metadata
 
 import io.quartz.grpc.Utils
+import io.quartz.grpc.TraitMethodFinder
 
 object param1 extends QueryParam("param1")
 object param2 extends QueryParam("param2")
@@ -45,7 +47,6 @@ object MyApp extends IOApp {
 
   var HOME_DIR = "/Users/ostrygun/" // last slash is important!
 
- 
   val R: HttpRouteIO = {
     case req @ POST -> Root / "com.example.protos.Greeter" / "SayHello" =>
       for {
@@ -67,12 +68,23 @@ object MyApp extends IOApp {
         )
   }
 
-
-  class Router(d: ServerServiceDefinition) {
+  class Router[T](
+      service: T,
+      d: ServerServiceDefinition,
+      method_map: Map[String, T => (GeneratedMessage, Metadata) => IO[
+        GeneratedMessage
+      ]]
+  ) {
 
     def getIO: HttpRoute = { req =>
       {
         for {
+          //segments <- IO(req.path.split("/"))
+          //methodName0 <- IO(segments(segments.length - 1))
+          //methodName <- IO(
+          //  methodName0.substring(0, 1).toLowerCase() + methodName0.substring(1)
+          //)
+          //_ <- IO.println(methodName)
           grpc_request <- req.body
           methodDefOpt <- IO(
             d.getMethods()
@@ -92,9 +104,13 @@ object MyApp extends IOApp {
             case None => IO(None)
             case Some(serverMethodDef) =>
               Utils
-                .process01[GreeterService, GeneratedMessage, GeneratedMessage](
+                .process01[T, GeneratedMessage, GeneratedMessage](
                   service,
                   serverMethodDef,
+                  method_map: Map[
+                    String,
+                    T => (GeneratedMessage, Metadata) => IO[GeneratedMessage]
+                  ],
                   grpc_request,
                   null
                 )
@@ -124,6 +140,10 @@ object MyApp extends IOApp {
     val greeterService: Resource[IO, ServerServiceDefinition] =
       GreeterFs2Grpc.bindServiceResource[IO](new GreeterService)
 
+    val mmap = TraitMethodFinder.getAllMethods[GreeterService]
+
+    println("Methods: " + mmap.size)
+
     val T = greeterService.use { sd =>
       for {
         _ <- IO(QuartzH2Server.setLoggingLevel(Level.DEBUG))
@@ -140,7 +160,7 @@ object MyApp extends IOApp {
           "keystore.jks",
           "password"
         )
-        grpcIO <- IO(Router(sd).getIO)
+        grpcIO <- IO(Router[GreeterService]( service, sd, mmap).getIO)
         exitCode <- new QuartzH2Server(
           "localhost",
           8443,

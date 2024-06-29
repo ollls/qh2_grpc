@@ -3,17 +3,11 @@ package io.quartz.grpc
 import java.io.ByteArrayOutputStream
 import io.grpc.Metadata
 import cats.effect.IO
-
-
-import scalapb.grpc.Marshaller
 import scalapb.GeneratedMessage
-
-import java.io.InputStream
 import java.io.ByteArrayInputStream
 import io.grpc.ServerMethodDefinition
 import scala.quoted.*
 
-import com.example.GreeterService
 
 object Utils {
 
@@ -33,17 +27,36 @@ object Utils {
     Expr(methods)
   }
 
-  inline def process01[svcT, ReqT <: GeneratedMessage, RespT <: GeneratedMessage](
+  inline def process01[
+      svcT,
+      ReqT <: GeneratedMessage,
+      RespT <: GeneratedMessage
+  ](
       svc: svcT,
       d: ServerMethodDefinition[GeneratedMessage, GeneratedMessage],
+      method_map: Map[
+        String,
+        svcT => (GeneratedMessage, Metadata) => IO[GeneratedMessage]
+      ],
       request: Array[Byte],
       ctx: Metadata
   ): IO[ByteArrayOutputStream] = {
 
     for {
+
+      methodName0 <- IO(d.getMethodDescriptor().getBareMethodName())
+      methodName <- IO(
+        methodName0.substring(0, 1).toLowerCase() + methodName0.substring(1)
+      )
+
+      //_ <- IO.println(">>>" + methodName)
+
       rm <- IO(d.getMethodDescriptor().getRequestMarshaller())
-      req <- IO(rm.parse( new ByteArrayInputStream(extractRequest(request))))
-      method <- IO(TraitMethodFinder.findMethod[svcT]("sayHello").get)
+      req <- IO(rm.parse(new ByteArrayInputStream(extractRequest(request))))
+      method <- IO(
+        method_map.get( methodName ).get
+        //TraitMethodFinder.findMethod[svcT]("sayHello").get
+        )
       response <- method(svc)(req, ctx)
       oS <- IO(outputStreamForResponse(response.serializedSize))
       _ <- IO(response.writeTo(oS))
