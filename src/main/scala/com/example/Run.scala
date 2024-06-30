@@ -50,6 +50,21 @@ object MyApp extends IOApp {
   var HOME_DIR = "/Users/ostrygun/" // last slash is important!
 
   val R: HttpRouteIO = {
+    case req @ POST -> Root / "com.example.protos.Greeter" / "LotsOfReplies" =>
+      for {
+        request <- req.body
+        response <- IO(service._lotsOfReplies(request, null))
+      } yield (Response
+        .Ok()
+        .asStream(response.flatMap(c => { println("1"); Stream.emits(c) }))
+        .trailers(
+          Headers(
+            "grpc-status" -> "0",
+            "grpc-message" -> "ok"
+          )
+        )
+        .hdr("content-type" -> "application/grpc"))
+
     case req @ POST -> Root / "com.example.protos.Greeter" / "SayHello" =>
       for {
         request <- req.body
@@ -73,18 +88,18 @@ object MyApp extends IOApp {
   class Router[T](
       service: T,
       d: ServerServiceDefinition,
-      method_map: Map[String, MethodRefBase[T] ]
+      method_map: Map[String, MethodRefBase[T]]
   ) {
 
     def getIO: HttpRoute = { req =>
       {
         for {
-          //segments <- IO(req.path.split("/"))
-          //methodName0 <- IO(segments(segments.length - 1))
-          //methodName <- IO(
+          // segments <- IO(req.path.split("/"))
+          // methodName0 <- IO(segments(segments.length - 1))
+          // methodName <- IO(
           //  methodName0.substring(0, 1).toLowerCase() + methodName0.substring(1)
-          //)
-          //_ <- IO.println(methodName)
+          // )
+          // _ <- IO.println(methodName)
           grpc_request <- req.body
           methodDefOpt <- IO(
             d.getMethods()
@@ -157,13 +172,13 @@ object MyApp extends IOApp {
           "keystore.jks",
           "password"
         )
-        grpcIO <- IO(Router[GreeterService]( service, sd, mmap).getIO)
+        grpcIO <- IO(Router[GreeterService](service, sd, mmap).getIO)
         exitCode <- new QuartzH2Server(
           "localhost",
           8443,
           32000,
           Some(ctx)
-        ).start(grpcIO, sync = false)
+        ).startIO(R, sync = false)
       } yield (exitCode)
     }
 

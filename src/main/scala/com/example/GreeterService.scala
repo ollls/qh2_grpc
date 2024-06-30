@@ -36,6 +36,20 @@ class GreeterService extends GreeterFs2Grpc[IO, Metadata] {
     IO(HelloReply(Option("TZ: " + zdt.toString())))
   }
 
+  def _lotsOfReplies(
+      request: Array[Byte],
+      ctx: Metadata
+  ): Stream[IO, Array[Byte]] = {
+
+    val outputStream = new ByteArrayOutputStream()
+    val r = HelloRequest.parseFrom(Utils.extractRequest(request))
+    val t = lotsOfReplies(r, null).map(r => {
+      r.writeTo(Utils.sizeResponse(r.serializedSize, outputStream))
+      outputStream.toByteArray()
+    })
+    t
+  }
+
   override def lotsOfReplies(
       request: HelloRequest,
       ctx: Metadata
