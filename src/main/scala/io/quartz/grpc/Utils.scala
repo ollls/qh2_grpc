@@ -34,10 +34,7 @@ object Utils {
   ](
       svc: svcT,
       d: ServerMethodDefinition[GeneratedMessage, GeneratedMessage],
-      method_map: Map[
-        String,
-        svcT => (GeneratedMessage, Metadata) => IO[GeneratedMessage]
-      ],
+      method_map: Map[String, io.quartz.grpc.MethodRefBase[svcT]],
       request: Array[Byte],
       ctx: Metadata
   ): IO[ByteArrayOutputStream] = {
@@ -57,7 +54,11 @@ object Utils {
         method_map.get( methodName ).get
         //TraitMethodFinder.findMethod[svcT]("sayHello").get
         )
-      response <- method(svc)(req, ctx)
+      response <- method match {
+        case MethodRef[svcT](m) => m(svc)(req, ctx)
+
+      }  
+      //response <- method.value(svc)(req, ctx)
       oS <- IO(outputStreamForResponse(response.serializedSize))
       _ <- IO(response.writeTo(oS))
 

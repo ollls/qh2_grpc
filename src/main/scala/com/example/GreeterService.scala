@@ -6,9 +6,11 @@ import io.grpc.Metadata
 
 import java.io.ByteArrayOutputStream
 import io.quartz.grpc.Utils
+import fs2.Stream
+
+//https://grpc.io/docs/what-is-grpc/core-concepts/
 
 class GreeterService extends GreeterFs2Grpc[IO, Metadata] {
-
 
   def _sayHello(
       request: Array[Byte],
@@ -32,6 +34,20 @@ class GreeterService extends GreeterFs2Grpc[IO, Metadata] {
   ): IO[HelloReply] = {
     val zdt = java.time.ZonedDateTime.now()
     IO(HelloReply(Option("TZ: " + zdt.toString())))
+  }
+
+  override def lotsOfReplies(
+      request: HelloRequest,
+      ctx: Metadata
+  ): fs2.Stream[IO, HelloReply] = {
+    fs2.Stream.emits(
+      Seq(
+        HelloReply(Option("TZ: " + java.time.ZonedDateTime.now().toString())),
+        HelloReply(Option("TZ: " + java.time.ZonedDateTime.now().toString())),
+        HelloReply(Option("TZ: " + java.time.ZonedDateTime.now().toString())),
+        HelloReply(Option("TZ: " + java.time.ZonedDateTime.now().toString()))
+      )
+    )
   }
 
 }

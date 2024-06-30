@@ -20,6 +20,8 @@ import io.grpc.ServerMethodDefinition
 import scala.jdk.CollectionConverters._
 import scalapb.GeneratedMessage
 import io.grpc.Metadata
+import io.quartz.grpc.MethodRef
+import io.quartz.grpc.MethodRefBase
 
 import io.quartz.grpc.Utils
 import io.quartz.grpc.TraitMethodFinder
@@ -71,9 +73,7 @@ object MyApp extends IOApp {
   class Router[T](
       service: T,
       d: ServerServiceDefinition,
-      method_map: Map[String, T => (GeneratedMessage, Metadata) => IO[
-        GeneratedMessage
-      ]]
+      method_map: Map[String, MethodRefBase[T] ]
   ) {
 
     def getIO: HttpRoute = { req =>
@@ -107,10 +107,7 @@ object MyApp extends IOApp {
                 .process01[T, GeneratedMessage, GeneratedMessage](
                   service,
                   serverMethodDef,
-                  method_map: Map[
-                    String,
-                    T => (GeneratedMessage, Metadata) => IO[GeneratedMessage]
-                  ],
+                  method_map: Map[String, MethodRefBase[T]],
                   grpc_request,
                   null
                 )
@@ -140,7 +137,7 @@ object MyApp extends IOApp {
     val greeterService: Resource[IO, ServerServiceDefinition] =
       GreeterFs2Grpc.bindServiceResource[IO](new GreeterService)
 
-    val mmap = TraitMethodFinder.getAllMethods[GreeterService]
+    val mmap = TraitMethodFinder.getAllMethodsRef[GreeterService]
 
     println("Methods: " + mmap.size)
 

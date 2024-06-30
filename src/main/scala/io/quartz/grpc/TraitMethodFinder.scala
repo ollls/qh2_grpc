@@ -9,6 +9,11 @@ import scala.quoted.*
 
 import scala.collection.mutable
 
+import fs2.Stream
+
+class MethodRefBase[T]
+case class MethodRef[T](value: T => (GeneratedMessage, Metadata) => IO[GeneratedMessage] ) extends MethodRefBase[T]
+
 /*
 Explanation on:  m.tree.asInstanceOf[DefDef].returnTpt.tpe <:< TypeRepr.of[IO[GeneratedMessage]]
 Getting the tree of the method symbol (m.tree)
@@ -112,4 +117,96 @@ object TraitMethodFinder {
       methodMap.toMap
     }
   }
+
+  private def getAllMethodsImpl2[T: Type](using Quotes): Expr[
+    Map[String, T => (GeneratedMessage, Metadata) => IO[GeneratedMessage]]
+  ] = {
+    import quotes.reflect.*
+
+    val tpe = TypeRepr.of[T]
+
+    val matchingMethods = tpe.typeSymbol.declarations.filter { m =>
+      m.isDefDef &&
+      m.paramSymss.flatten.size == 2 &&
+      m.paramSymss.flatten.head.typeRef <:< TypeRepr.of[GeneratedMessage] &&
+      m.tree.asInstanceOf[DefDef].returnTpt.tpe <:< TypeRepr
+        .of[Stream[IO, GeneratedMessage]]
+    }
+
+    '{
+      val methodMap = mutable
+        .Map[String, T => (GeneratedMessage, Metadata) => IO[
+          GeneratedMessage
+        ]]()
+
+      ${
+        Expr.ofSeq(matchingMethods.map { method =>
+          val methodName = Expr(method.name)
+          report.info("}}} " + methodName)
+          val reqType = method.paramSymss.flatten.head.typeRef
+
+          '{
+            methodMap.put(
+              $methodName,
+              (obj: T) =>
+                (messageParam: GeneratedMessage, metadataParam: Metadata) =>
+                  ${
+                    val castedParam = Typed(
+                      '{ messageParam }.asTerm,
+                      Inferred(reqType)
+                    )
+                    Apply(
+                      Select('{ obj }.asTerm, method),
+                      List(castedParam, '{ metadataParam }.asTerm)
+                    ).asExprOf[IO[GeneratedMessage]]
+                  }
+            )
+          }
+        })
+      }
+      methodMap.toMap
+    }
+  }
+
+  inline def getAllMethodsRef[T]: Map[String, MethodRef[T]] = ${ getAllMethodsImplRef[T] } 
+
+
+  private def getAllMethodsImplRef[T: Type](using Quotes): Expr[Map[String, MethodRef[T]]] = {
+  import quotes.reflect.*
+  val tpe = TypeRepr.of[T]
+  val matchingMethods = tpe.typeSymbol.declarations.filter { m =>
+    m.isDefDef &&
+    m.paramSymss.flatten.size == 2 &&
+    m.paramSymss.flatten.head.typeRef <:< TypeRepr.of[GeneratedMessage] &&
+    m.tree.asInstanceOf[DefDef].returnTpt.tpe <:< TypeRepr.of[IO[GeneratedMessage]]
+  }
+  '{
+    val methodMap = mutable.Map[String, MethodRef[T]]()
+    ${
+      Expr.ofSeq(matchingMethods.map { method =>
+        val methodName = Expr(method.name)
+        val reqType = method.paramSymss.flatten.head.typeRef
+        '{
+          methodMap.put(
+            $methodName,
+            MethodRef((obj: T) =>
+              (messageParam: GeneratedMessage, metadataParam: Metadata) =>
+                ${
+                  val castedParam = Typed(
+                    '{ messageParam }.asTerm,
+                    Inferred(reqType)
+                  )
+                  Apply(
+                    Select('{ obj }.asTerm, method),
+                    List(castedParam, '{ metadataParam }.asTerm)
+                  ).asExprOf[IO[GeneratedMessage]]
+                }
+            )
+          )
+        }
+      })
+    }
+    methodMap.toMap
+  }
+}
 }
