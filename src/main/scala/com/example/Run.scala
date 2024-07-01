@@ -23,6 +23,7 @@ import io.grpc.Metadata
 import io.quartz.grpc.MethodRef
 import io.quartz.grpc.MethodRefBase
 import io.grpc.Status
+//import io.quartz.http2.routes.WebFilter
 
 import io.quartz.grpc.Utils
 import io.quartz.grpc.TraitMethodFinder
@@ -60,7 +61,7 @@ object MyApp extends IOApp {
         .asStream(response.flatMap(c => { println("1"); Stream.emits(c) }))
         .trailers(
           Headers(
-            "grpc-status" -> Status.OK.toString(),
+            "grpc-status" -> "0",
             "grpc-message" -> "ok"
           )
         )
@@ -75,7 +76,7 @@ object MyApp extends IOApp {
         .Ok()
         .trailers(
           Headers(
-            "grpc-status" -> Status.OK.toString(),
+            "grpc-status" -> "0",
             "grpc-message" -> "ok",
             "content-type" -> "application/grpc"
           )
@@ -89,10 +90,23 @@ object MyApp extends IOApp {
   class Router[T](
       service: T,
       d: ServerServiceDefinition,
-      method_map: Map[String, MethodRefBase[T]]
+      method_map: Map[String, MethodRefBase[T]],
+      filter: WebFilter = (r0: Request) => IO(Right(r0))
   ) {
 
     def getIO: HttpRoute = { req =>
+      for {
+        fR <- filter(req)
+        response <- fR match {
+          // provide io.grpc.Status/message in response's trailers
+          case Left(response) => IO(Some(response))
+          case Right(request) => post_getIO(request)
+        }
+      } yield (response)
+
+    }
+
+    private def post_getIO: HttpRoute = { req =>
       {
         for {
           grpc_request <- req.body
@@ -128,7 +142,7 @@ object MyApp extends IOApp {
             .Ok()
             .trailers(
               Headers(
-                "grpc-status" -> Status.OK.toString(),
+                "grpc-status" -> Status.OK.getCode().value().toString(),
                 "grpc-message" -> "ok",
                 "content-type" -> "application/grpc"
               )
@@ -169,7 +183,7 @@ object MyApp extends IOApp {
           "keystore.jks",
           "password"
         )
-        grpcIO <- IO(Router[GreeterService](service, sd, mmap ++ mmap2 ).getIO)
+        grpcIO <- IO(Router[GreeterService](service, sd, mmap ++ mmap2).getIO)
         exitCode <- new QuartzH2Server(
           "localhost",
           8443,
