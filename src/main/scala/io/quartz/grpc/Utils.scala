@@ -36,7 +36,7 @@ object Utils {
       method_map: Map[String, io.quartz.grpc.MethodRefBase[svcT]],
       request: Array[Byte],
       ctx: Metadata
-  ): IO[ByteArrayOutputStream] = {
+  ): IO[fs2.Stream[IO, Array[Byte]]] = {
 
     for {
 
@@ -45,25 +45,32 @@ object Utils {
         methodName0.substring(0, 1).toLowerCase() + methodName0.substring(1)
       )
 
-      // _ <- IO.println(">>>" + methodName)
-
       rm <- IO(d.getMethodDescriptor().getRequestMarshaller())
       req <- IO(rm.parse(new ByteArrayInputStream(extractRequest(request))))
       method <- IO(
         method_map
           .get(methodName)
           .get
-          // TraitMethodFinder.findMethod[svcT]("sayHello").get
       )
+      outputStream <- IO(new ByteArrayOutputStream())
       response <- method match {
-        case MethodRef[svcT](m) => m(svc)(req, ctx)
+        case MethodRef[svcT](m) =>
+          m(svc)(req, ctx)
+            .map(r => {
+              r.writeTo(Utils.sizeResponse(r.serializedSize, outputStream))
+              outputStream.toByteArray
+            })
+            .map(fs2.Stream.emit[IO, Array[Byte]](_))
 
+        case MethodStreamRef[svcT](m) =>
+          IO {
+            m(svc)(req, ctx).map(r => {
+              r.writeTo(Utils.sizeResponse(r.serializedSize, outputStream))
+              outputStream.toByteArray()
+            })
+          }
       }
-
-      oS <- IO(outputStreamForResponse(response.serializedSize))
-      _ <- IO(response.writeTo(oS))
-
-    } yield (oS)
+    } yield (response)
 
   }
 

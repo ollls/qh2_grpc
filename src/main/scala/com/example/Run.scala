@@ -94,12 +94,6 @@ object MyApp extends IOApp {
     def getIO: HttpRoute = { req =>
       {
         for {
-          // segments <- IO(req.path.split("/"))
-          // methodName0 <- IO(segments(segments.length - 1))
-          // methodName <- IO(
-          //  methodName0.substring(0, 1).toLowerCase() + methodName0.substring(1)
-          // )
-          // _ <- IO.println(methodName)
           grpc_request <- req.body
           methodDefOpt <- IO(
             d.getMethods()
@@ -115,7 +109,7 @@ object MyApp extends IOApp {
               )
           )
 
-          result: Option[ByteArrayOutputStream] <- methodDefOpt match {
+          result: Option[fs2.Stream[IO, Array[Byte]]] <- methodDefOpt match {
             case None => IO(None)
             case Some(serverMethodDef) =>
               Utils
@@ -128,7 +122,7 @@ object MyApp extends IOApp {
                 )
                 .map(c => Some(c))
           }
-        } yield (result.map(bytes =>
+        } yield (result.map(stream =>
           Response
             .Ok()
             .trailers(
@@ -139,7 +133,7 @@ object MyApp extends IOApp {
               )
             )
             .hdr("content-type" -> "application/grpc")
-            .asStream(Stream.emits(bytes.toByteArray()))
+            .asStream(stream.flatMap(Stream.emits(_)))
         ))
 
       }
@@ -147,14 +141,16 @@ object MyApp extends IOApp {
     }
   }
 
-  def run(args: List[String]) /*: IO[ExitCode]*/ = {
+  def run(args: List[String]) = {
 
     val greeterService: Resource[IO, ServerServiceDefinition] =
       GreeterFs2Grpc.bindServiceResource[IO](new GreeterService)
 
     val mmap = TraitMethodFinder.getAllMethodsRef[GreeterService]
+    val mmap2 = TraitMethodFinder.getAllMethodsStreamRef[GreeterService]
 
     println("Methods: " + mmap.size)
+    println("Methods: " + mmap2.size)
 
     val T = greeterService.use { sd =>
       for {
@@ -172,13 +168,13 @@ object MyApp extends IOApp {
           "keystore.jks",
           "password"
         )
-        grpcIO <- IO(Router[GreeterService](service, sd, mmap).getIO)
+        grpcIO <- IO(Router[GreeterService](service, sd, mmap ++ mmap2 ).getIO)
         exitCode <- new QuartzH2Server(
           "localhost",
           8443,
           32000,
           Some(ctx)
-        ).startIO(R, sync = false)
+        ).start(grpcIO, sync = false)
       } yield (exitCode)
     }
 
