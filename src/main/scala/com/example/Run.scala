@@ -22,6 +22,7 @@ import scalapb.GeneratedMessage
 import io.grpc.Metadata
 import io.quartz.grpc.MethodRef
 import io.quartz.grpc.MethodRefBase
+import io.grpc.Status
 
 import io.quartz.grpc.Utils
 import io.quartz.grpc.TraitMethodFinder
@@ -59,7 +60,7 @@ object MyApp extends IOApp {
         .asStream(response.flatMap(c => { println("1"); Stream.emits(c) }))
         .trailers(
           Headers(
-            "grpc-status" -> "0",
+            "grpc-status" -> Status.OK.toString(),
             "grpc-message" -> "ok"
           )
         )
@@ -74,7 +75,7 @@ object MyApp extends IOApp {
         .Ok()
         .trailers(
           Headers(
-            "grpc-status" -> "0",
+            "grpc-status" -> Status.OK.toString(),
             "grpc-message" -> "ok",
             "content-type" -> "application/grpc"
           )
@@ -127,7 +128,7 @@ object MyApp extends IOApp {
             .Ok()
             .trailers(
               Headers(
-                "grpc-status" -> "0",
+                "grpc-status" -> Status.OK.toString(),
                 "grpc-message" -> "ok",
                 "content-type" -> "application/grpc"
               )
