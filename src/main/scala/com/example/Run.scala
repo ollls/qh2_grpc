@@ -94,6 +94,21 @@ object MyApp extends IOApp {
       filter: WebFilter = (r0: Request) => IO(Right(r0))
   ) {
 
+    // TODO -bin suffix we do later
+    def headersToMetadata(hdr: Headers): Metadata = {
+      hdr.tbl.foldRight(new Metadata)((pair, m) => {
+        if (
+          pair._1.startsWith(":") == false && pair._1
+            .startsWith("grpc") == false
+        ) {
+          m.put(
+            Metadata.Key.of(pair._1, Metadata.ASCII_STRING_MARSHALLER),
+            pair._2.mkString(",")
+          ); m
+        } else m
+      })
+    }
+
     def getIO: HttpRoute = { req =>
       for {
         fR <- filter(req)
@@ -133,7 +148,8 @@ object MyApp extends IOApp {
                   serverMethodDef,
                   method_map: Map[String, MethodRefBase[T]],
                   grpc_request,
-                  null
+                  //null
+                  headersToMetadata(req.headers)
                 )
                 .map(c => Some(c))
           }
