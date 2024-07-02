@@ -132,7 +132,18 @@ object MyApp extends IOApp {
         response <- fR match {
           // provide io.grpc.Status/message in response's trailers
           case Left(response) => IO(Some(response))
-          case Right(request) => post_getIO(request)
+          case Right(request) =>
+            post_getIO(request).handleError(e => {
+              Some(
+                Response.Ok().hdr("content-type" -> "application/grpc")
+                  .trailers(
+                    Headers(
+                      "grpc-status" -> Status.INTERNAL.getCode().value().toString(),
+                      "grpc-message" -> e.toString()
+                    )
+                  ).asStream( Stream.emits( Utils.outputStreamForResponse(0).toByteArray() ))
+              )
+            })
         }
       } yield (response)
 
@@ -165,7 +176,6 @@ object MyApp extends IOApp {
                   serverMethodDef,
                   method_map: Map[String, MethodRefBase[T]],
                   grpc_request,
-                  // null
                   headersToMetadata(req.headers)
                 )
                 .map(c => Some(c))
