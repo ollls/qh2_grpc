@@ -1,7 +1,6 @@
 PoC Quartz-H2 and sbt-fs2-grpc plugin.
 
 TODO:
-Streaming, metadata headers, etc.
 Project is under development.
 
 We use generated models and Marshallers from sbt-fs2-grpc but to call the actual service methods we use scala 3.3 macro.
