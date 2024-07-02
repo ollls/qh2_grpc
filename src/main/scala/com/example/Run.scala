@@ -23,7 +23,6 @@ import io.grpc.Metadata
 import io.quartz.grpc.MethodRef
 import io.quartz.grpc.MethodRefBase
 import io.grpc.Status
-//import io.quartz.http2.routes.WebFilter
 
 import io.quartz.grpc.Utils
 import io.quartz.grpc.TraitMethodFinder
@@ -94,19 +93,37 @@ object MyApp extends IOApp {
       filter: WebFilter = (r0: Request) => IO(Right(r0))
   ) {
 
-    // TODO -bin suffix we do later
     def headersToMetadata(hdr: Headers): Metadata = {
-      hdr.tbl.foldRight(new Metadata)((pair, m) => {
-        if (
-          pair._1.startsWith(":") == false && pair._1
-            .startsWith("grpc") == false
-        ) {
-          m.put(
-            Metadata.Key.of(pair._1, Metadata.ASCII_STRING_MARSHALLER),
-            pair._2.mkString(",")
-          ); m
-        } else m
-      })
+      val excludedPrefixes = Set(":", "grpc-")
+      val excludedHeaders = Set("content-type", "user-agent")
+
+      hdr.tbl.foldRight(new Metadata) {
+        case ((key, value), m) => {
+          val lowerKey = key.toLowerCase
+          if (
+            !excludedPrefixes.exists(lowerKey.startsWith) && !excludedHeaders
+              .contains(lowerKey)
+          ) {
+            if (!key.endsWith("-bin")) {
+              value.foreach { v =>
+                m.put(
+                  Metadata.Key.of(lowerKey, Metadata.ASCII_STRING_MARSHALLER),
+                  v
+                )
+              }
+            } else {
+              value.foreach { v =>
+                val base64string = java.util.Base64.getDecoder.decode(v)
+                m.put(
+                  Metadata.Key.of(key, Metadata.BINARY_BYTE_MARSHALLER),
+                  base64string
+                )
+              }
+            }
+          }
+          m
+        }
+      }
     }
 
     def getIO: HttpRoute = { req =>
@@ -148,7 +165,7 @@ object MyApp extends IOApp {
                   serverMethodDef,
                   method_map: Map[String, MethodRefBase[T]],
                   grpc_request,
-                  //null
+                  // null
                   headersToMetadata(req.headers)
                 )
                 .map(c => Some(c))

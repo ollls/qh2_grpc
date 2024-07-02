@@ -7,6 +7,7 @@ import scalapb.GeneratedMessage
 import java.io.ByteArrayInputStream
 import io.grpc.ServerMethodDefinition
 import scala.quoted.*
+import scala.util.Try
 
 object Utils {
 
@@ -44,14 +45,16 @@ object Utils {
       methodName <- IO(
         methodName0.substring(0, 1).toLowerCase() + methodName0.substring(1)
       )
-
       rm <- IO(d.getMethodDescriptor().getRequestMarshaller())
-      req <- IO(rm.parse(new ByteArrayInputStream(extractRequest(request))))
-      method <- IO(
-        method_map
-          .get(methodName)
-          .get
+      req <- IO.fromTry(
+        Try(rm.parse(new ByteArrayInputStream(extractRequest(request))))
       )
+      method <- IO.fromOption(method_map.get(methodName))(
+        new NoSuchElementException(
+          s"Unexpected error: scala macro method Map: GRPC Service method not found: $methodName"
+        )
+      )
+
       outputStream <- IO(new ByteArrayOutputStream())
       response <- method match {
         case MethodRef[svcT](m) =>
