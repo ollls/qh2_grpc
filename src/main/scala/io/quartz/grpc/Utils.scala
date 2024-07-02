@@ -8,6 +8,10 @@ import java.io.ByteArrayInputStream
 import io.grpc.ServerMethodDefinition
 import scala.quoted.*
 import scala.util.Try
+import io.grpc.Status
+
+case class QH2GrpcError(val code: Status, val message: String)
+    extends Exception(message)
 
 object Utils {
 

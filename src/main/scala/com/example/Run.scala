@@ -23,6 +23,7 @@ import io.grpc.Metadata
 import io.quartz.grpc.MethodRef
 import io.quartz.grpc.MethodRefBase
 import io.grpc.Status
+import io.quartz.grpc.QH2GrpcError
 
 import io.quartz.grpc.Utils
 import io.quartz.grpc.TraitMethodFinder
@@ -133,17 +134,46 @@ object MyApp extends IOApp {
           // provide io.grpc.Status/message in response's trailers
           case Left(response) => IO(Some(response))
           case Right(request) =>
-            post_getIO(request).handleError(e => {
-              Some(
-                Response.Ok().hdr("content-type" -> "application/grpc")
-                  .trailers(
-                    Headers(
-                      "grpc-status" -> Status.INTERNAL.getCode().value().toString(),
-                      "grpc-message" -> e.toString()
+            post_getIO(request).handleError {
+              case QH2GrpcError(status, message) => {
+                Some(
+                  Response
+                    .Ok()
+                    .hdr("content-type" -> "application/grpc")
+                    .trailers(
+                      Headers(
+                        "grpc-status" -> status.getCode.value().toString(),
+                        "grpc-message" -> message.toString()
+                      )
                     )
-                  ).asStream( Stream.emits( Utils.outputStreamForResponse(0).toByteArray() ))
-              )
-            })
+                    .asStream(
+                      Stream.emits(
+                        Utils.outputStreamForResponse(0).toByteArray()
+                      )
+                    )
+                )
+              }
+              case e: Throwable =>
+                Some(
+                  Response
+                    .Ok()
+                    .hdr("content-type" -> "application/grpc")
+                    .trailers(
+                      Headers(
+                        "grpc-status" -> Status.INTERNAL
+                          .getCode()
+                          .value()
+                          .toString(),
+                        "grpc-message" -> e.getMessage
+                      )
+                    )
+                    .asStream(
+                      Stream.emits(
+                        Utils.outputStreamForResponse(0).toByteArray()
+                      )
+                    )
+                )
+            }
         }
       } yield (response)
 
