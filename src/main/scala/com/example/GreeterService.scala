@@ -33,8 +33,8 @@ class GreeterService extends GreeterFs2Grpc[IO, Metadata] {
       ctx: Metadata
   ): IO[HelloReply] = {
     val zdt = java.time.ZonedDateTime.now()
-    IO.raiseError(new Exception("My custom error occurred in my service application code, bla bla"))
-    //IO(HelloReply(Option("TZ: " + zdt.toString())))
+    //IO.raiseError(new Exception("My custom error occurred in my service application code, bla bla"))
+    IO(HelloReply(Option("TZ: " + zdt.toString())))
   }
 
   def _lotsOfReplies(

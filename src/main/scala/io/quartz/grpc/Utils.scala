@@ -39,47 +39,51 @@ object Utils {
       svc: svcT,
       d: ServerMethodDefinition[GeneratedMessage, GeneratedMessage],
       method_map: Map[String, io.quartz.grpc.MethodRefBase[svcT]],
-      request: Array[Byte],
+      request: fs2.Stream[IO, Byte],
       ctx: Metadata
   ): IO[fs2.Stream[IO, Array[Byte]]] = {
 
     for {
-
-      //_ <- d.getMethodDescriptor().getType().clientSendsOneMessage() 
-
       methodName0 <- IO(d.getMethodDescriptor().getBareMethodName())
       methodName <- IO(
         methodName0.substring(0, 1).toLowerCase() + methodName0.substring(1)
       )
       rm <- IO(d.getMethodDescriptor().getRequestMarshaller())
-      //req <- IO.fromTry(
-      //  Try(rm.parse(new ByteArrayInputStream(extractRequest(request))))
-      //)
+
       method <- IO.fromOption(method_map.get(methodName))(
         new NoSuchElementException(
           s"Unexpected error: scala macro method Map: GRPC Service method not found: $methodName"
         )
       )
-
       outputStream <- IO(new ByteArrayOutputStream())
       response <- method match {
         case MethodUnaryToUnary[svcT](m) =>
-          val req = rm.parse(new ByteArrayInputStream(extractRequest(request)) )
-          m(svc)(req, ctx)
-            .map(r => {
-              r.writeTo(Utils.sizeResponse(r.serializedSize, outputStream))
-              outputStream.toByteArray
-            })
-            .map(fs2.Stream.emit[IO, Array[Byte]](_))
+          for {
+            req0 <- request.compile.toVector
+              .map(_.toArray)
+            req <- IO(rm.parse(new ByteArrayInputStream(extractRequest(req0))))
+
+            response <- m(svc)(req, ctx)
+              .map(r => {
+                r.writeTo(Utils.sizeResponse(r.serializedSize, outputStream))
+                outputStream.toByteArray
+              })
+              .map(fs2.Stream.emit[IO, Array[Byte]](_))
+          } yield (response)
 
         case MethodUnaryToStream[svcT](m) =>
-          val req = rm.parse(new ByteArrayInputStream(extractRequest(request)) )
-          IO {
-            m(svc)(req, ctx).map(r => {
+          for {
+            req0 <- request.compile.toVector
+              .map(_.toArray)
+            req <- IO(rm.parse(new ByteArrayInputStream(extractRequest(req0))))
+
+            response <- IO(m(svc)(req, ctx).map(r => {
               r.writeTo(Utils.sizeResponse(r.serializedSize, outputStream))
-              outputStream.toByteArray()
-            })
-          }
+              outputStream.toByteArray
+            }))
+          } yield (response)
+
+        case MethodStreamToUnary[svcT](value) => ???
       }
     } yield (response)
 

@@ -181,7 +181,7 @@ object MyApp extends IOApp {
     private def post_getIO: HttpRoute = { req =>
       {
         for {
-          grpc_request <- req.body
+          //grpc_request <- req.body
           methodDefOpt <- IO(
             d.getMethods()
               .asScala
@@ -204,7 +204,7 @@ object MyApp extends IOApp {
                   service,
                   serverMethodDef,
                   method_map: Map[String, MethodRefBase[T]],
-                  grpc_request,
+                  req.stream,
                   headersToMetadata(req.headers)
                 )
                 .map(c => Some(c))
