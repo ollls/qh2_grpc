@@ -20,7 +20,6 @@ import io.grpc.ServerMethodDefinition
 import scala.jdk.CollectionConverters._
 import scalapb.GeneratedMessage
 import io.grpc.Metadata
-import io.quartz.grpc.MethodRef
 import io.quartz.grpc.MethodRefBase
 import io.grpc.Status
 import io.quartz.grpc.QH2GrpcError

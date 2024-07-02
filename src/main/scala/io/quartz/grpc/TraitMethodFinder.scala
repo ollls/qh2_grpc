@@ -12,11 +12,24 @@ import scala.collection.mutable
 import fs2.Stream
 
 class MethodRefBase[T]
-case class MethodRef[T](
+
+case class MethodUnaryToUnary[T](
     value: T => (GeneratedMessage, Metadata) => IO[GeneratedMessage]
 ) extends MethodRefBase[T]
-case class MethodStreamRef[T](
+
+case class MethodUnaryToStream[T](
     value: T => (GeneratedMessage, Metadata) => Stream[IO, GeneratedMessage]
+) extends MethodRefBase[T]
+
+case class MethodStreamToUnary[T](
+    value: T => (Stream[IO, GeneratedMessage], Metadata) => IO[GeneratedMessage]
+) extends MethodRefBase[T]
+
+case class MethodStreamToStream[T](
+    value: T => (
+        Stream[IO, GeneratedMessage],
+        Metadata
+    ) => Stream[IO, GeneratedMessage]
 ) extends MethodRefBase[T]
 
 /*
@@ -173,13 +186,13 @@ object TraitMethodFinder {
     }
   }
 
-  inline def getAllMethodsRef[T]: Map[String, MethodRef[T]] = ${
+  inline def getAllMethodsRef[T]: Map[String, MethodUnaryToUnary[T]] = ${
     getAllMethodsImplRef[T]
   }
 
   private def getAllMethodsImplRef[T: Type](using
       Quotes
-  ): Expr[Map[String, MethodRef[T]]] = {
+  ): Expr[Map[String, MethodUnaryToUnary[T]]] = {
     import quotes.reflect.*
     val tpe = TypeRepr.of[T]
     val matchingMethods = tpe.typeSymbol.declarations.filter { m =>
@@ -190,7 +203,7 @@ object TraitMethodFinder {
         .of[IO[GeneratedMessage]]
     }
     '{
-      val methodMap = mutable.Map[String, MethodRef[T]]()
+      val methodMap = mutable.Map[String, MethodUnaryToUnary[T]]()
       ${
         Expr.ofSeq(matchingMethods.map { method =>
           val methodName = Expr(method.name)
@@ -198,7 +211,7 @@ object TraitMethodFinder {
           '{
             methodMap.put(
               $methodName,
-              MethodRef((obj: T) =>
+              MethodUnaryToUnary((obj: T) =>
                 (messageParam: GeneratedMessage, metadataParam: Metadata) =>
                   ${
                     val castedParam = Typed(
@@ -219,13 +232,13 @@ object TraitMethodFinder {
     }
   }
 
-   inline def getAllMethodsStreamRef[T]: Map[String, MethodStreamRef[T]] = ${
+  inline def getAllMethodsStreamRef[T]: Map[String, MethodUnaryToStream[T]] = ${
     getAllMethodsImplStreamRef[T]
   }
 
   private def getAllMethodsImplStreamRef[T: Type](using
       Quotes
-  ): Expr[Map[String, MethodStreamRef[T]]] = {
+  ): Expr[Map[String, MethodUnaryToStream[T]]] = {
     import quotes.reflect.*
     val tpe = TypeRepr.of[T]
     val matchingMethods = tpe.typeSymbol.declarations.filter { m =>
@@ -236,7 +249,7 @@ object TraitMethodFinder {
         .of[Stream[IO, GeneratedMessage]]
     }
     '{
-      val methodMap = mutable.Map[String, MethodStreamRef[T]]()
+      val methodMap = mutable.Map[String, MethodUnaryToStream[T]]()
       ${
         Expr.ofSeq(matchingMethods.map { method =>
           val methodName = Expr(method.name)
@@ -244,7 +257,7 @@ object TraitMethodFinder {
           '{
             methodMap.put(
               $methodName,
-              MethodStreamRef((obj: T) =>
+              MethodUnaryToStream((obj: T) =>
                 (messageParam: GeneratedMessage, metadataParam: Metadata) =>
                   ${
                     val castedParam = Typed(
@@ -264,5 +277,100 @@ object TraitMethodFinder {
       methodMap.toMap
     }
   }
+
+  inline def getAllMethodsStreamToUnary[T]
+      : Map[String, MethodStreamToUnary[T]] = ${
+    getAllMethodsImplStreamToUnary[T]
+  }
+  private def getAllMethodsImplStreamToUnary[T: Type](using
+      Quotes
+  ): Expr[Map[String, MethodStreamToUnary[T]]] = {
+    import quotes.reflect.*
+    val tpe = TypeRepr.of[T]
+    val matchingMethods = tpe.typeSymbol.declarations.filter { m =>
+      m.isDefDef &&
+      m.paramSymss.flatten.size == 2 &&
+      m.paramSymss.flatten.head.typeRef <:< TypeRepr
+        .of[Stream[IO, GeneratedMessage]] &&
+      m.tree.asInstanceOf[DefDef].returnTpt.tpe <:< TypeRepr
+        .of[IO[GeneratedMessage]]
+    }
+    '{
+      val methodMap = mutable.Map[String, MethodStreamToUnary[T]]()
+      ${
+        Expr.ofSeq(matchingMethods.map { method =>
+          val methodName = Expr(method.name)
+          val reqType = method.paramSymss.flatten.head.typeRef
+          '{
+            methodMap.put(
+              $methodName,
+              MethodStreamToUnary((obj: T) =>
+                (
+                    streamParam: Stream[IO, GeneratedMessage],
+                    metadataParam: Metadata
+                ) =>
+                  ${
+                    val castedParam = Typed(
+                      '{ streamParam }.asTerm,
+                      Inferred(reqType)
+                    )
+                    Apply(
+                      Select('{ obj }.asTerm, method),
+                      List(castedParam, '{ metadataParam }.asTerm)
+                    ).asExprOf[IO[GeneratedMessage]]
+                  }
+              )
+            )
+          }
+        })
+      }
+      methodMap.toMap
+    }
+  }
+
+  inline def getAllMethodsStreamToStream[T]
+      : Map[String, MethodStreamToStream[T]] = ${
+    getAllMethodsImplStreamToStream[T]
+  }
+
+  private def getAllMethodsImplStreamToStream[T: Type](using Quotes): Expr[Map[String, MethodStreamToStream[T]]] = {
+  import quotes.reflect.*
+  val tpe = TypeRepr.of[T]
+  val matchingMethods = tpe.typeSymbol.declarations.filter { m =>
+    m.isDefDef &&
+    m.paramSymss.flatten.size == 2 &&
+    m.paramSymss.flatten.head.typeRef <:< TypeRepr.of[Stream[IO, GeneratedMessage]] &&
+    m.paramSymss.flatten.last.typeRef <:< TypeRepr.of[Metadata] &&
+    m.tree.asInstanceOf[DefDef].returnTpt.tpe <:< TypeRepr.of[Stream[IO, GeneratedMessage]]
+  }
+  '{
+    val methodMap = mutable.Map[String, MethodStreamToStream[T]]()
+    ${
+      Expr.ofSeq(matchingMethods.map { method =>
+        val methodName = Expr(method.name)
+        val reqType = method.paramSymss.flatten.head.typeRef
+        '{
+          methodMap.put(
+            $methodName,
+            MethodStreamToStream((obj: T) =>
+              (streamParam: Stream[IO, GeneratedMessage], metadataParam: Metadata) =>
+                ${
+                  val castedParam = Typed(
+                    '{ streamParam }.asTerm,
+                    Inferred(reqType)
+                  )
+                  Apply(
+                    Select('{ obj }.asTerm, method),
+                    List(castedParam, '{ metadataParam }.asTerm)
+                  ).asExprOf[Stream[IO, GeneratedMessage]]
+                }
+            )
+          )
+        }
+      })
+    }
+    methodMap.toMap
+  }
+}
 
 }

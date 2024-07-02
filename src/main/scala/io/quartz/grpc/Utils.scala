@@ -45,14 +45,16 @@ object Utils {
 
     for {
 
+      //_ <- d.getMethodDescriptor().getType().clientSendsOneMessage() 
+
       methodName0 <- IO(d.getMethodDescriptor().getBareMethodName())
       methodName <- IO(
         methodName0.substring(0, 1).toLowerCase() + methodName0.substring(1)
       )
       rm <- IO(d.getMethodDescriptor().getRequestMarshaller())
-      req <- IO.fromTry(
-        Try(rm.parse(new ByteArrayInputStream(extractRequest(request))))
-      )
+      //req <- IO.fromTry(
+      //  Try(rm.parse(new ByteArrayInputStream(extractRequest(request))))
+      //)
       method <- IO.fromOption(method_map.get(methodName))(
         new NoSuchElementException(
           s"Unexpected error: scala macro method Map: GRPC Service method not found: $methodName"
@@ -61,7 +63,8 @@ object Utils {
 
       outputStream <- IO(new ByteArrayOutputStream())
       response <- method match {
-        case MethodRef[svcT](m) =>
+        case MethodUnaryToUnary[svcT](m) =>
+          val req = rm.parse(new ByteArrayInputStream(extractRequest(request)) )
           m(svc)(req, ctx)
             .map(r => {
               r.writeTo(Utils.sizeResponse(r.serializedSize, outputStream))
@@ -69,7 +72,8 @@ object Utils {
             })
             .map(fs2.Stream.emit[IO, Array[Byte]](_))
 
-        case MethodStreamRef[svcT](m) =>
+        case MethodUnaryToStream[svcT](m) =>
+          val req = rm.parse(new ByteArrayInputStream(extractRequest(request)) )
           IO {
             m(svc)(req, ctx).map(r => {
               r.writeTo(Utils.sizeResponse(r.serializedSize, outputStream))
