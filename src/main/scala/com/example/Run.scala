@@ -181,7 +181,7 @@ object MyApp extends IOApp {
     private def post_getIO: HttpRoute = { req =>
       {
         for {
-          //grpc_request <- req.body
+          // grpc_request <- req.body
           methodDefOpt <- IO(
             d.getMethods()
               .asScala
@@ -235,9 +235,13 @@ object MyApp extends IOApp {
 
     val mmap = TraitMethodFinder.getAllMethodsRef[GreeterService]
     val mmap2 = TraitMethodFinder.getAllMethodsStreamRef[GreeterService]
+    val mmap3 = TraitMethodFinder.getAllMethodsStreamToUnary[GreeterService]
+    val mmap4 = TraitMethodFinder.getAllMethodsStreamToStream[GreeterService]
 
     println("Methods: " + mmap.size)
     println("Methods: " + mmap2.size)
+    println("Methods: " + mmap3.size)
+    println("Methods: " + mmap4.size)
 
     val T = greeterService.use { sd =>
       for {
@@ -255,7 +259,13 @@ object MyApp extends IOApp {
           "keystore.jks",
           "password"
         )
-        grpcIO <- IO(Router[GreeterService](service, sd, mmap ++ mmap2).getIO)
+        grpcIO <- IO(
+          Router[GreeterService](
+            service,
+            sd,
+            mmap ++ mmap2 ++ mmap3 ++ mmap4
+          ).getIO
+        )
         exitCode <- new QuartzH2Server(
           "localhost",
           8443,
