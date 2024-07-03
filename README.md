@@ -14,33 +14,6 @@ grpcurl -v -insecure -proto orders.proto -d '{"name" : "MESSAGE1", "number":101 
 grpcurl -v -insecure -proto orders.proto -d '{"name" : "John The Cube Jr", "number":101 } {"name" : "George The King", "number":101 }' localhost:8443 com.example.protos.Greeter/BidiHello 
 ```
 
-REST Style interraction with grpc clients also possible.
-
-```scala
-
- val R: HttpRouteIO = {
-    case req @ POST -> Root / "com.example.protos.Greeter" / "SayHello" =>
-      for {
-        request <- req.body
-        io <- service._sayHello(request, null)
-
-      } yield (Response
-        .Ok()
-        .trailers(
-          Headers(
-            "grpc-status" -> "0",
-            "grpc-message" -> "ok",
-            "content-type" -> "application/grpc"
-          )
-        )
-        .hdr("content-type" -> "application/grpc"))
-        .asStream(
-          Stream.emits(io.toByteArray)
-        )
-  }
-
-```
-
 Universal grpc router for quartz with scala 3 macro.
 
 We need both ServerServiceDefinition and 
@@ -77,7 +50,32 @@ TraitMethodFinder.getAllMethods[GreeterService] done with scala3 macro.
     }
     exitCode
   }
+```
 
+REST Style interraction with grpc clients also possible.
+
+```scala
+
+ val R: HttpRouteIO = {
+    case req @ POST -> Root / "com.example.protos.Greeter" / "SayHello" =>
+      for {
+        request <- req.body
+        io <- service._sayHello(request, null)
+
+      } yield (Response
+        .Ok()
+        .trailers(
+          Headers(
+            "grpc-status" -> "0",
+            "grpc-message" -> "ok",
+            "content-type" -> "application/grpc"
+          )
+        )
+        .hdr("content-type" -> "application/grpc"))
+        .asStream(
+          Stream.emits(io.toByteArray)
+        )
+  }
 
 ```
 
