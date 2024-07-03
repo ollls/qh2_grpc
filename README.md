@@ -8,7 +8,7 @@ We use generated models and Marshallers from sbt-fs2-grpc but to call the actual
 ```
 grpcurl -v -insecure -proto orders.proto -d '{"name" : "John The Cube Jr", "number":101 }' localhost:8443 com.example.protos.Greeter/SayHello
 grpcurl -v -insecure -proto orders.proto -d '{"name" : "MESSAGE1", "number":101 } {"name" : "MESSAGE2", "number":101 }' localhost:8443 com.example.protos.Greeter/LotsOfGreetings
-rotobuf % grpcurl -v -insecure -proto orders.proto -d '{"name" : "John The Cube Jr", "number":101 } {"name" : "George The King", "number":101 }' localhost:8443 com.example.protos.Greeter/BidiHello 
+grpcurl -v -insecure -proto orders.proto -d '{"name" : "John The Cube Jr", "number":101 } {"name" : "George The King", "number":101 }' localhost:8443 com.example.protos.Greeter/BidiHello 
 ```
 
 REST Style interraction with grpc clients also possible.
