@@ -17,7 +17,7 @@ grpcurl -v -insecure -proto orders.proto -d '{"name" : "John The Cube Jr", "numb
 Universal grpc router for quartz with scala 3 macro.
 
 We need both ServerServiceDefinition and 
-TraitMethodFinder.getAllMethods[GreeterService] done with scala3 macro.
+TraitMethodFinder.getAllMethods[GreeterService] which was done with scala3 macro.
 
 ```scala
   def run(args: List[String]) = {
