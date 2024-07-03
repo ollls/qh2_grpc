@@ -68,10 +68,21 @@ class GreeterService extends GreeterFs2Grpc[IO, Metadata] {
   override def lotsOfGreetings(
       request: fs2.Stream[IO, HelloRequest],
       ctx: Metadata
-  ): IO[HelloReply] = ???
+  ): IO[HelloReply] = {
+    for {
+      res <- IO(
+        request
+          .fold("")((acum, c) => acum + "," + c.getName)
+          .map(str => HelloReply(Some(str)))
+      )
+      listOfOne <- res.compile.toList
+    } yield (listOfOne.head)
+  }
+
   override def bidiHello(
       request: fs2.Stream[IO, HelloRequest],
       ctx: Metadata
-  ): fs2.Stream[IO, HelloReply] = ???
+  ): fs2.Stream[IO, HelloReply] =
+    request.map(helloRequest => HelloReply(Some(helloRequest.getName)))
 
 }
