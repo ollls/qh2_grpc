@@ -47,25 +47,26 @@ We need both ServerServiceDefinition and
 TraitMethodFinder.getAllMethods[GreeterService] done with scala3 macro.
 
 ```scala
- def run(args: List[String]) /*: IO[ExitCode]*/ = {
+  def run(args: List[String]) = {
 
     val greeterService: Resource[IO, ServerServiceDefinition] =
       GreeterFs2Grpc.bindServiceResource[IO](new GreeterService)
 
-    val mmap = TraitMethodFinder.getAllMethods[GreeterService]
-
-    println("Methods: " + mmap.size)
-
-    val T = greeterService.use { sd =>
+    val exitCode = greeterService.use { sd =>
       for {
         _ <- IO(QuartzH2Server.setLoggingLevel(Level.DEBUG))
-
         ctx <- QuartzH2Server.buildSSLContext(
           "TLSv1.3",
           "keystore.jks",
           "password"
         )
-        grpcIO <- IO(Router[GreeterService]( service, sd, mmap).getIO)
+        grpcIO <- IO(
+          Router[GreeterService](
+            service,
+            sd,
+            TraitMethodFinder.getAllMethods[GreeterService]
+          ).getIO
+        )
         exitCode <- new QuartzH2Server(
           "localhost",
           8443,
@@ -74,6 +75,9 @@ TraitMethodFinder.getAllMethods[GreeterService] done with scala3 macro.
         ).start(grpcIO, sync = false)
       } yield (exitCode)
     }
+    exitCode
+  }
+
 
 ```
 
